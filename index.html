@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Random car game that roasts you 🚗💢</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep:#08080c;
+    --bg-road:#1a1a24;
+    --hot-pink:#ff2e63;
+    --volt-yellow:#ffd23f;
+    --cyan:#08d9d6;
+    --white:#f4f4f4;
+    --lime:#5cff5c;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;height:100%;
+    background:var(--bg-deep);
+    font-family:'Press Start 2P',monospace;
+    color:var(--white);
+    overflow:hidden;
+    -webkit-user-select:none;user-select:none;
+    image-rendering:pixelated;
+  }
+  #wrap{
+    position:relative;
+    width:100vw;height:100vh;
+    display:flex;align-items:center;justify-content:center;
+  }
+  #stage{
+    position:relative;
+    width:min(96vw, 480px);
+    height:min(94vh, 780px);
+    border:6px solid var(--white);
+    outline:6px solid #000;
+    box-shadow:0 0 0 3px var(--volt-yellow);
+    overflow:hidden;
+    background:var(--bg-road);
+    image-rendering:pixelated;
+  }
+  canvas{display:block;width:100%;height:100%;image-rendering:pixelated;}
+
+  /* CRT scanline overlay */
+  #scanlines{
+    position:absolute;inset:0;z-index:6;pointer-events:none;
+    background:repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,0.16) 0px,
+      rgba(0,0,0,0.16) 1px,
+      rgba(0,0,0,0) 2px,
+      rgba(0,0,0,0) 4px
+    );
+    mix-blend-mode:multiply;
+  }
+
+  .pixel{font-family:'Press Start 2P',monospace;}
+
+  /* HUD */
+  #hud{
+    position:absolute;top:0;left:0;right:0;
+    display:flex;justify-content:space-between;align-items:flex-start;
+    padding:8px 8px;
+    pointer-events:none;
+    z-index:5;
+  }
+  #hud .stat{font-size:9px;line-height:2;}
+  #hud .stat b{color:var(--volt-yellow);font-size:11px;-webkit-text-stroke:1px #000;}
+  #coinTag{color:var(--cyan);}
+  #spikeTag{color:var(--hot-pink);font-size:8px;}
+
+  #pauseHint{
+    position:absolute; bottom:6px; left:0; right:0;
+    text-align:center; font-size:7px; letter-spacing:0px;
+    color:#888; z-index:5; pointer-events:none;
+    line-height:1.6;
+  }
+
+  /* Overlays */
+  .overlay{
+    position:absolute; inset:0;
+    background:rgba(10,10,16,0.94);
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding:24px;
+    z-index:20;
+    gap:14px;
+  }
+  .overlay.show{display:flex;}
+
+  h1.title{
+    font-family:'Press Start 2P',monospace;
+    font-size:clamp(18px,5.5vw,28px);
+    color:var(--volt-yellow);
+    text-shadow:4px 4px 0 var(--hot-pink);
+    margin:0;
+    line-height:1.5;
+  }
+  .sub{color:#aaa;font-size:11px;max-width:320px;font-family:'JetBrains Mono',monospace;line-height:1.6;}
+
+  .btn{
+    font-family:'Press Start 2P',monospace;
+    font-size:11px;
+    padding:14px 20px;
+    background:var(--hot-pink);
+    color:#fff;
+    border:3px solid #000;
+    border-radius:0;
+    cursor:pointer;
+    box-shadow:5px 5px 0 #000;
+    transition:transform .05s;
+  }
+  .btn:active{transform:translate(3px,3px);box-shadow:2px 2px 0 #000;}
+  .btn.alt{background:var(--cyan);color:#04302f;}
+  .btn:disabled{background:#3a3a45;color:#777;cursor:not-allowed;}
+
+  .stamp{
+    font-family:'Press Start 2P',monospace;
+    color:var(--hot-pink);
+    border:4px solid var(--hot-pink);
+    border-radius:0;
+    padding:6px 16px;
+    transform:rotate(-8deg);
+    font-size:20px;
+    margin:4px 0 2px;
+    letter-spacing:2px;
+    animation:stampIn .35s ease-out;
+  }
+  @keyframes stampIn{
+    0%{transform:rotate(-8deg) scale(2.4);opacity:0;}
+    60%{opacity:1;}
+    100%{transform:rotate(-8deg) scale(1);opacity:1;}
+  }
+
+  .roast{
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;
+    font-size:15px;
+    color:var(--volt-yellow);
+    max-width:320px;
+    animation:shake .32s ease;
+  }
+  @keyframes shake{
+    0%,100%{transform:translateX(0);}
+    20%{transform:translateX(-6px) rotate(-1deg);}
+    40%{transform:translateX(6px) rotate(1deg);}
+    60%{transform:translateX(-4px);}
+    80%{transform:translateX(4px);}
+  }
+
+  .row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;}
+  .statline{font-size:11px;color:#ccc;font-family:'JetBrains Mono',monospace;}
+  .statline b{color:var(--cyan);}
+
+  /* Shop */
+  .shopItem{
+    background:#1e1e29;
+    border:3px solid #000;
+    outline:2px solid #444;
+    border-radius:0;
+    padding:12px 14px;
+    width:230px;
+    text-align:left;
+  }
+  .shopItem h3{margin:0 0 6px;font-size:11px;color:var(--volt-yellow);font-family:'Press Start 2P',monospace;}
+  .shopItem p{margin:0 0 10px;font-size:11px;color:#aaa;line-height:1.5;font-family:'JetBrains Mono',monospace;}
+  .shopItem .buy{width:100%;font-size:9px;padding:10px;}
+
+  #startScreen .sub{margin-bottom:6px;}
+  .keys{
+    display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px;
+  }
+  .key{
+    background:#1e1e29;border:2px solid var(--cyan);border-radius:0;
+    padding:6px 8px;font-size:8px;color:var(--cyan);font-family:'Press Start 2P',monospace;
+  }
+
+  #pauseOverlay h1{font-size:20px;}
+
+  #stage.upside-down{ transform:rotate(180deg); }
+
+  #toast{
+    position:absolute; bottom:34px; left:50%; transform:translateX(-50%);
+    background:#000; border:3px solid var(--hot-pink); color:var(--volt-yellow);
+    font-family:'Press Start 2P',monospace; font-size:9px; padding:9px 12px;
+    opacity:0; pointer-events:none; transition:opacity .2s; z-index:15;
+    white-space:nowrap; text-align:center;
+  }
+  #toast.show{opacity:1;}
+
+  .codeInput{
+    font-family:'Press Start 2P',monospace;
+    font-size:11px;
+    padding:10px;
+    background:#111;
+    color:var(--volt-yellow);
+    border:3px solid #000;
+    outline:2px solid var(--cyan);
+    text-align:center;
+    width:220px;
+    text-transform:uppercase;
+  }
+
+  .swatchRow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:260px;}
+  .swatch{
+    width:26px;height:26px;padding:0;
+    border:3px solid #000;outline:2px solid #444;
+    cursor:pointer;
+  }
+  .swatch.picked{outline:2px solid var(--volt-yellow);}
+
+  #previewCanvas{background:#111;border:3px solid #000;outline:2px solid #444;}
+
+  #sixsevenOverlay{z-index:999;background:rgba(5,5,8,0.98);}
+  #sixsevenOverlay .sub{color:var(--volt-yellow);font-size:13px;max-width:280px;}
+
+  @media (max-width:380px){
+    .shopItem{width:90%;}
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="game"></canvas>
+    <div id="scanlines"></div>
+
+    <div id="hud">
+      <div class="stat">SCORE<br><b id="scoreVal">0</b></div>
+      <div class="stat" style="text-align:right;">
+        <span id="coinTag">🪙 <b id="coinVal">0</b></span><br>
+        <span id="spikeTag"></span>
+      </div>
+    </div>
+    <div id="pauseHint">A/D MOVE · P PAUSE · SPACE SPIKES</div>
+    <div id="toast"></div>
+
+    <!-- START -->
+    <div id="startScreen" class="overlay show">
+      <h1 class="title">Random car game that roasts you<br>2000</h1>
+      <p class="sub">3 lanes. cars everywhere. - STILL ON ALPHA MAY HAVE BUGS</p>
+      <div class="keys">
+        <span class="key">A / D = MOVE</span>
+        <span class="key">P = PAUSE</span>
+        <span class="key">SPACE = SPIKES</span>
+      </div>
+      <button class="btn" id="startBtn">START</button>
+      <div class="row">
+        <button class="btn alt" id="shopBtnStart">SHOP 🪙<span id="coinValStart"></span></button>
+        <button class="btn alt" id="customizeBtnStart">CUSTOMIZE</button>
+        <button class="btn alt" id="codeBtnStart">CODES</button>
+      </div>
+    </div>
+
+    <!-- GAME OVER -->
+    <div id="overScreen" class="overlay">
+      <div class="stamp">F</div>
+      <div class="roast" id="roastLine">u suck</div>
+      <div class="row">
+        <div class="statline">SCORE: <b id="finalScore">0</b></div>
+        <div class="statline">+COINS: <b id="finalCoins">0</b></div>
+      </div>
+      <div class="row">
+        <button class="btn" id="retryBtn">RETRY</button>
+        <button class="btn alt" id="shopBtnOver">SHOP</button>
+      </div>
+    </div>
+
+    <!-- PAUSE -->
+    <div id="pauseOverlay" class="overlay">
+      <h1 class="title" style="font-size:22px;">PAUSED</h1>
+      <button class="btn" id="resumeBtn">RESUME</button>
+    </div>
+
+    <!-- SHOP -->
+    <div id="shopOverlay" class="overlay">
+      <h1 class="title" style="font-size:18px;">SHOP</h1>
+      <div class="statline">BALANCE: 🪙 <b id="shopCoinVal">0</b></div>
+      <div class="row">
+        <div class="shopItem">
+          <h3>SPEED+</h3>
+          <p id="speedDesc">Change lanes faster bruhh</p>
+          <button class="btn buy" id="buySpeed">BUY — <span id="speedCost"></span> 🪙</button>
+        </div>
+        <div class="shopItem">
+          <h3>SPIKES</h3>
+          <p>Press SPACE mid-run to smash through cars for 10 seconds — they EXPLODE EPICALLY instead of ending your run. +20 pts and +5 coins per    car smashed. 20 seconds cooldown.</p>
+          <button class="btn buy alt" id="buySpike">BUY — <span id="spikeCost"></span> 🪙</button>
+        </div>
+        <div class="shopItem">
+          <h3>❄️ SNOW WORLD</h3>
+          <p id="snowDesc">Reach 1000 score in a single run to unlock.</p>
+          <button class="btn buy alt" id="buySnow">LOCKED</button>
+        </div>
+      </div>
+      <button class="btn" id="closeShopBtn">BACK</button>
+    </div>
+
+    <!-- CODES -->
+    <div id="codeOverlay" class="overlay">
+      <h1 class="title" style="font-size:18px;">ENTER CODE</h1>
+      <p class="sub">uuh, enter code here? Obviously?</p>
+      <input type="text" id="codeInput" class="codeInput" placeholder="TYPE CODE HERE" maxlength="24">
+      <div class="statline" id="codeMsg" style="min-height:14px;color:var(--volt-yellow);"></div>
+      <div class="row">
+        <button class="btn" id="submitCodeBtn">REDEEM</button>
+        <button class="btn alt" id="closeCodeBtn">BACK</button>
+      </div>
+    </div>
+
+    <!-- CUSTOMIZE -->
+    <div id="customizeOverlay" class="overlay">
+      <h1 class="title" style="font-size:18px;">CUSTOMIZE</h1>
+      <canvas id="previewCanvas" width="90" height="140"></canvas>
+      <div class="statline">BODY COLOR</div>
+      <div class="swatchRow" id="bodySwatches"></div>
+      <div class="statline">STRIPE COLOR</div>
+      <div class="swatchRow" id="stripeSwatches"></div>
+      <button class="btn buy" id="toggleStripeBtn" style="font-size:9px;">STRIPE: ON</button>
+      <button class="btn" id="closeCustomizeBtn">BACK</button>
+    </div>
+
+    <!-- SIXSEVEN (unclosable) -->
+    <div id="sixsevenOverlay" class="overlay">
+      <h1 class="title" style="font-size:18px;">💀</h1>
+      <p class="sub">go do your homework kid this isn't funny</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  const stage = document.getElementById('stage');
+  function resize(){
+    const rect = stage.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    ctx.imageSmoothingEnabled = false;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------- Persistent-ish state (in-memory only, resets on reload) ----------
+  let coins = 0;
+  let speedLevel = 0;       // 0..5
+  let hasSpikes = false;
+
+  const SPEED_COSTS = [50, 80, 130, 180, 240];
+  const SPIKE_COST = 250;
+
+  // ---------- Game state ----------
+  const LANES = 3;
+  let laneX = [];
+  let laneWidth = 0;
+  let player = { lane: 1, x: 0, y: 0, w: 0, h: 0, moveSpeed: 0.18 };
+  let obstacles = [];
+  let score = 0;
+  let elapsed = 0;
+  let dodged = 0;
+  let running = false;
+  let paused = false;
+  let gameOver = false;
+  let waveTimer = 0;
+  let baseFallSpeed = 2.6;
+  let lastTime = 0;
+  let spikesActive = false;
+  let spikesTimeLeft = 0;
+  let spikesCooldownLeft = 0;
+  const SPIKE_DURATION = 10000;
+  const SPIKE_COOLDOWN = 20000;
+  let particles = [];
+
+  // easter eggs / codes
+  let redeemedCodes = new Set();
+  let gabrielActive = false;
+  let christmasActive = false;
+  let upsideDownActive = false;
+
+  // snow world
+  let bestScore = 0;
+  let ownsSnowWorld = false;
+  let currentWorld = 'classic';
+  const SNOW_WORLD_COST = 750;
+  let snowflakes = [];
+
+  // customization
+  let playerCustom = { body:'#ffffff', stripe:'#ff0000', stripeOn:true };
+  const BODY_SWATCHES = ['#ff2e63','#08d9d6','#ffd23f','#5cff5c','#a855f7','#ff8a3d','#ffffff','#3a3a44'];
+  const STRIPE_SWATCHES = ['#fff23f','#ffffff','#08d9d6','#ff2e63','#5cff5c','#000000','#ff0000'];
+
+  const ROASTS = [
+    "how can you suck at pressing two buttons?",
+    "hand the control back to the older brother",
+    "just go do your homework",
+    "just close the game at this point",
+    "did you forgot how to press two keys?",
+    "so bad i think you have better luck blindfolded",
+    "3 lanes and you still hit a car",
+    "never, ever try to drive a real car",
+    "three lanes, zero braincells",
+    "an iq too low?"
+  ];
+
+  function layout(){
+    laneWidth = canvas.width / LANES;
+    laneX = [0,1,2].map(i => laneWidth*i + laneWidth/2);
+    player.w = laneWidth * 0.52;
+    player.h = player.w * 1.7;
+    player.y = canvas.height - player.h - 18;
+    player.x = laneX[player.lane];
+  }
+
+  function resetGame(){
+    obstacles = [];
+    particles = [];
+    score = 0; elapsed = 0; dodged = 0;
+    player.lane = 1;
+    waveTimer = 0;
+    baseFallSpeed = 2.6;
+    spikesActive = false; spikesTimeLeft = 0; spikesCooldownLeft = 0;
+    layout();
+    gameOver = false;
+    paused = false;
+  }
+
+  function currentMoveSpeed(){
+    // base tween speed per level (higher = snappier lane switch)
+    return 0.16 + speedLevel * 0.055;
+  }
+
+  // ---------- Input ----------
+  const keys = {};
+  window.addEventListener('keydown', (e)=>{
+    const tag = document.activeElement && document.activeElement.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(['a','d','p',' ','A','D','P'].includes(e.key)) e.preventDefault();
+    const k = e.key.toLowerCase();
+    if(k === 'a') moveLane(-1);
+    if(k === 'd') moveLane(1);
+    if(k === 'p') togglePause();
+    if(k === ' ') useSpikes();
+    keys[k] = true;
+  });
+  window.addEventListener('keyup', (e)=>{ keys[e.key.toLowerCase()] = false; });
+
+  let targetLaneX = null;
+  function moveLane(dir){
+    if(!running || paused || gameOver) return;
+    const newLane = Math.min(LANES-1, Math.max(0, player.lane + dir));
+    player.lane = newLane;
+  }
+
+  function togglePause(){
+    if(!running || gameOver) return;
+    paused = !paused;
+    document.getElementById('pauseOverlay').classList.toggle('show', paused);
+  }
+
+  let toastTimeout = null;
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(()=> t.classList.remove('show'), 1700);
+  }
+
+  function useSpikes(){
+    if(!running || paused || gameOver) return;
+    if(!hasSpikes){ showToast('you need to buy it on the store lol'); return; }
+    if(spikesActive || spikesCooldownLeft > 0) return;
+    spikesActive = true;
+    spikesTimeLeft = SPIKE_DURATION;
+  }
+
+  // ---------- Spawning ----------
+  const ENEMY_VARIANTS = 4; // index into ENEMY_PALETTES
+  function spawnObstacle(lane){
+    const w = laneWidth * 0.52;
+    const h = w * 1.62;
+    obstacles.push({
+      lane, x: laneX[lane], y: -h,
+      w, h,
+      counted:false,
+      dead:false,
+      variant: Math.floor(Math.random()*ENEMY_VARIANTS)
+    });
+  }
+
+  function currentObstacleH(){
+    return (laneWidth*0.52) * 1.62;
+  }
+
+  function spawnWave(){
+    // never fill every lane in one wave — always leaves at least one lane open
+    const maxFill = elapsed > 35000 ? 2 : 1;
+    const fillCount = (maxFill === 2 && Math.random() < 0.3) ? 2 : 1;
+    const lanes = [0,1,2];
+    for(let i=lanes.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [lanes[i],lanes[j]] = [lanes[j],lanes[i]];
+    }
+    for(const lane of lanes.slice(0, fillCount)){
+      spawnObstacle(lane);
+    }
+  }
+
+  // ---------- Pixel sprites ----------
+  // Shared top-down car shape (9 wide x 14 tall). Recolored per car type.
+  const CAR_GRID = [
+    "..DDDDD..",
+    ".DBBBBBD.",
+    "DBBBBBBBD",
+    "DBWWWWWBD",
+    "TBWWWWWBT",
+    "TBBBBBBBT",
+    "DBBBBBBBD",
+    "DBBBBBBBD",
+    "TBBBBBBBT",
+    "TBWWWWWBT",
+    "DBWWWWWBD",
+    "DBBBBBBBD",
+    ".DBBBBBD.",
+    "..DDDDD.."
+  ];
+  // Player grid: same silhouette + a center racing stripe ('S') and a spoiler nub on top ('P')
+  const PLAYER_GRID = [
+    "..DDDDD..",
+    ".DBSBSBD.",
+    "DBBSBSBBD",
+    "DBWWWWWBD",
+    "TBWWWWWBT",
+    "TBBSBSBBT",
+    "DBBSBSBBD",
+    "DBBSBSBBD",
+    "TBBSBSBBT",
+    "TBWWWWWBT",
+    "DBWWWWWBD",
+    "DBBSBSBBD",
+    ".DBSBSBD.",
+    "..DPPPD.."
+  ];
+
+  const ENEMY_PALETTES = [
+    { D:'#04302f', B:'#08d9d6', W:'#0a1a1f', T:'#000' }, // cyan cab
+    { D:'#5a0d24', B:'#ff2e63', W:'#0a0a12', T:'#000' }, // pink hatch
+    { D:'#5c4700', B:'#ffd23f', W:'#0a0a12', T:'#000' }, // yellow taxi
+    { D:'#3a3a44', B:'#c9c9c9', W:'#0a0a12', T:'#000' }  // silver sedan
+  ];
+
+  // Plane grid for the GABRIEL easter egg (same 9-wide grid convention)
+  const PLANE_GRID = [
+    ".......D.......",
+    "......BBB......",
+    "......BBB......",
+    "......BBB......",
+    ".....BBBBB.....",
+    "...DBBBBBBBD...",
+    "..DDDBWWWBDDD..",
+    ".DDDDBBBBBDDDD.",
+    "DDBBBBBBBBBBBDD",
+    "....BBBBBBB....",
+    ".....BBBBB.....",
+    "......BBB......",
+    "......BBB......",
+    "....BBBDBBB...."
+  ];
+
+  const HAT_GRID = [".RRR.","RRRRR","WWWWW"];
+  const HAT_PALETTE = { R:'#d61f34', W:'#fff' };
+
+  function getPlayerPalette(){
+    return {
+      D:'#808080',
+      B: playerCustom.body,
+      W:'#0a0a12',
+      T:'#000',
+      S: playerCustom.stripeOn ? playerCustom.stripe : playerCustom.body,
+      P:'#eaecec'
+    };
+  }
+
+  function drawSprite(c, grid, palette, cx, cy, w, h){
+    const cols = grid[0].length;
+    const rows = grid.length;
+    const cw = w / cols;
+    const ch = h / rows;
+    const startX = Math.round(cx - w/2);
+    const startY = Math.round(cy - h/2);
+    for(let r=0;r<rows;r++){
+      const line = grid[r];
+      for(let col=0;col<cols;col++){
+        const ch_ = line[col];
+        if(ch_ === '.') continue;
+        const color = palette[ch_];
+        if(!color) continue;
+        c.fillStyle = color;
+        const px = startX + Math.round(col*cw);
+        const py = startY + Math.round(r*ch);
+        const pw = Math.round(startX + (col+1)*cw) - px;
+        const ph = Math.round(startY + (r+1)*ch) - py;
+        c.fillRect(px, py, pw, ph);
+      }
+    }
+  }
+
+  function drawSantaHat(c, cx, carTopY, carW){
+    const hatW = carW * 0.6;
+    const hatH = hatW * 0.6;
+    drawSprite(c, HAT_GRID, HAT_PALETTE, cx, carTopY - hatH*0.35, hatW, hatH);
+  }
+
+  function drawCar(x, y, w, h, variant, isPlayer, targetCtx){
+    const c = targetCtx || ctx;
+    if(isPlayer){
+      if(gabrielActive){
+        drawSprite(c, PLANE_GRID, { D:'#000', B: playerCustom.body, W:'#0a0a12' }, x, y, w, h);
+      } else {
+        drawSprite(c, PLAYER_GRID, getPlayerPalette(), x, y, w, h);
+      }
+    } else {
+      drawSprite(c, CAR_GRID, ENEMY_PALETTES[variant % ENEMY_PALETTES.length], x, y, w, h);
+    }
+    if(christmasActive){
+      drawSantaHat(c, x, y - h/2, w);
+    }
+  }
+
+  // ---------- Explosion particles ----------
+  const EXPLODE_COLORS = ['#ffd23f','#ff2e63','#ff8a3d','#fff','#08d9d6'];
+  function explodeObstacle(o){
+    const count = 16;
+    for(let i=0;i<count;i++){
+      const angle = (Math.PI*2) * (i/count) + (Math.random()*0.5 - 0.25);
+      const speed = 2.2 + Math.random()*3.5;
+      particles.push({
+        x: o.x, y: o.y,
+        vx: Math.cos(angle)*speed,
+        vy: Math.sin(angle)*speed - 1.5,
+        size: 3 + Math.random()*4,
+        life: 420 + Math.random()*260,
+        maxLife: 420 + 260,
+        color: EXPLODE_COLORS[Math.floor(Math.random()*EXPLODE_COLORS.length)]
+      });
+    }
+  }
+
+  function updateParticles(dt){
+    for(let i=particles.length-1;i>=0;i--){
+      const p = particles[i];
+      p.life -= dt;
+      if(p.life <= 0){ particles.splice(i,1); continue; }
+      p.x += p.vx * (dt/16.6);
+      p.y += p.vy * (dt/16.6);
+      p.vy += 0.18 * (dt/16.6); // gravity
+    }
+  }
+
+  function drawParticles(){
+    for(const p of particles){
+      const alpha = Math.max(0, p.life / p.maxLife);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.color;
+      const s = Math.round(p.size);
+      ctx.fillRect(Math.round(p.x - s/2), Math.round(p.y - s/2), s, s);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- Drawing ----------
+  let roadOffset = 0;
+  function ensureSnowflakes(){
+    if(snowflakes.length) return;
+    for(let i=0;i<36;i++){
+      snowflakes.push({
+        x: Math.random()*canvas.width,
+        y: Math.random()*canvas.height,
+        s: 2 + Math.random()*3,
+        sp: 0.6 + Math.random()*1.2
+      });
+    }
+  }
+  function drawSnowfall(){
+    ensureSnowflakes();
+    ctx.fillStyle = '#ffffff';
+    for(const f of snowflakes){
+      f.y += f.sp;
+      if(f.y > canvas.height){ f.y = -4; f.x = Math.random()*canvas.width; }
+      ctx.fillRect(Math.round(f.x), Math.round(f.y), f.s, f.s);
+    }
+  }
+
+  function drawRoad(){
+    const isSnow = currentWorld === 'snow';
+
+    ctx.fillStyle = isSnow ? '#dcefff' : '#1a1a24';
+    ctx.fillRect(0,0,canvas.width, canvas.height);
+
+    // subtle pixel dot texture on asphalt/snow
+    ctx.fillStyle = isSnow ? 'rgba(20,60,110,0.05)' : 'rgba(255,255,255,0.035)';
+    const step = 16;
+    const off = Math.floor(roadOffset) % step;
+    for(let y = -step + off; y < canvas.height; y += step){
+      for(let x = (Math.round(y/step)%2===0 ? 0 : step/2); x < canvas.width; x += step){
+        ctx.fillRect(Math.round(x), Math.round(y), 2, 2);
+      }
+    }
+
+    // lane dividers: chunky scrolling pixel dashes
+    ctx.fillStyle = isSnow ? '#2a6fb0' : '#ffd23f';
+    const dashH = 18, gapH = 14, dashW = 5;
+    for(let i=1;i<LANES;i++){
+      const x = Math.round(laneWidth*i - dashW/2);
+      let y = Math.round(roadOffset) - (dashH+gapH);
+      while(y < canvas.height){
+        ctx.fillRect(x, y, dashW, dashH);
+        y += dashH + gapH;
+      }
+    }
+
+    // pixel border trim
+    ctx.fillStyle = isSnow ? '#ff2e63' : '#08d9d6';
+    ctx.fillRect(0,0,canvas.width,4);
+    ctx.fillRect(0,canvas.height-4,canvas.width,4);
+
+    if(isSnow) drawSnowfall();
+  }
+
+  // ---------- Loop ----------
+  function loop(t){
+    if(!lastTime) lastTime = t;
+    const dt = Math.min(40, t - lastTime);
+    lastTime = t;
+
+    if(running && !paused && !gameOver){
+      update(dt);
+    }
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function update(dt){
+    elapsed += dt;
+    roadOffset = (roadOffset + dt*0.3) % 40;
+
+    // difficulty ramp — climbs slowly the longer you survive
+    baseFallSpeed = Math.min(8.5, 2.6 + elapsed/25000);
+
+    // wave gap scales with current speed so cars never bunch up faster than you can react
+    const oh = currentObstacleH();
+    const pxPerMs = (baseFallSpeed*60) / 1000;
+    const minWaveInterval = (oh * 1.7) / pxPerMs;
+    const difficultyInterval = Math.max(650, 2500 - elapsed/70);
+    const waveInterval = Math.max(minWaveInterval, difficultyInterval);
+
+    waveTimer += dt;
+    if(waveTimer > waveInterval){
+      waveTimer = 0;
+      spawnWave();
+    }
+
+    // move player toward target lane
+    const targetX = laneX[player.lane];
+    player.x += (targetX - player.x) * Math.min(1, currentMoveSpeed());
+
+    // spike timers
+    if(spikesActive){
+      spikesTimeLeft -= dt;
+      if(spikesTimeLeft <= 0){
+        spikesActive = false;
+        spikesCooldownLeft = SPIKE_COOLDOWN;
+      }
+    } else if(spikesCooldownLeft > 0){
+      spikesCooldownLeft -= dt;
+    }
+
+    // score: time alive
+    score += (dt/1000) * 6;
+
+    // obstacles
+    for(let i=obstacles.length-1;i>=0;i--){
+      const o = obstacles[i];
+      if(o.dead) continue;
+      o.y += baseFallSpeed * (dt/10.6);
+
+      // collision (AABB, generous-ish)
+      if(!gameOver &&
+         Math.abs(o.x - player.x) < (o.w*0.5 + player.w*0.5) * 0.72 &&
+         Math.abs(o.y - player.y) < (o.h*0.5 + player.h*0.5) * 0.72){
+        if(spikesActive){
+          explodeObstacle(o);
+          score += 20;
+          coins += 5;
+          o.dead = true;
+        } else {
+          triggerGameOver();
+        }
+      }
+
+      if(!o.counted && o.y > player.y + player.h/2){
+        o.counted = true;
+        dodged++;
+        score += 5;
+      }
+
+      if(o.dead || o.y - o.h/2 > canvas.height + 30){
+        obstacles.splice(i,1);
+      }
+    }
+
+    updateParticles(dt);
+
+    document.getElementById('scoreVal').textContent = Math.floor(score);
+    const spikeTag = document.getElementById('spikeTag');
+    if(hasSpikes){
+      if(spikesActive){
+        spikeTag.textContent = '💥 ' + Math.ceil(spikesTimeLeft/1000) + 's';
+      } else if(spikesCooldownLeft > 0){
+        spikeTag.textContent = '🔺 cd ' + Math.ceil(spikesCooldownLeft/1000) + 's';
+      } else {
+        spikeTag.textContent = '🔺 ready';
+      }
+    } else {
+      spikeTag.textContent = '';
+    }
+  }
+
+  function render(){
+    drawRoad();
+    for(const o of obstacles){
+      if(o.dead) continue;
+      drawCar(o.x, o.y, o.w, o.h, o.variant, false);
+    }
+    if(running){
+      drawCar(player.x, player.y, player.w, player.h, 0, true);
+    }
+    drawParticles();
+  }
+
+  function triggerGameOver(){
+    gameOver = true;
+    running = false;
+    bestScore = Math.max(bestScore, score);
+    const earned = Math.floor(score/10);
+    coins += earned;
+    document.getElementById('finalScore').textContent = Math.floor(score);
+    document.getElementById('finalCoins').textContent = earned;
+    document.getElementById('roastLine').textContent = ROASTS[Math.floor(Math.random()*ROASTS.length)];
+    updateCoinDisplays();
+    document.getElementById('overScreen').classList.add('show');
+  }
+
+  // ---------- UI wiring ----------
+  function updateCoinDisplays(){
+    document.getElementById('coinVal').textContent = coins;
+    document.getElementById('coinValStart').textContent = coins ? (' ('+coins+')') : '';
+    document.getElementById('shopCoinVal').textContent = coins;
+    refreshShopButtons();
+  }
+
+  function refreshShopButtons(){
+    const speedCostEl = document.getElementById('speedCost');
+    const buySpeedBtn = document.getElementById('buySpeed');
+    if(speedLevel >= SPEED_COSTS.length){
+      speedCostEl.textContent = 'MAX';
+      buySpeedBtn.disabled = true;
+    } else {
+      speedCostEl.textContent = SPEED_COSTS[speedLevel];
+      buySpeedBtn.disabled = coins < SPEED_COSTS[speedLevel];
+    }
+    document.getElementById('speedDesc').textContent =
+      `Snappier lane changes. Level ${speedLevel}/${SPEED_COSTS.length}.`;
+
+    const spikeCostEl = document.getElementById('spikeCost');
+    const buySpikeBtn = document.getElementById('buySpike');
+    if(hasSpikes){
+      spikeCostEl.textContent = 'OWNED';
+      buySpikeBtn.disabled = true;
+    } else {
+      spikeCostEl.textContent = SPIKE_COST;
+      buySpikeBtn.disabled = coins < SPIKE_COST;
+    }
+
+    const buySnowBtn = document.getElementById('buySnow');
+    const snowDesc = document.getElementById('snowDesc');
+    if(ownsSnowWorld){
+      buySnowBtn.textContent = 'SWITCH WORLD (' + (currentWorld === 'snow' ? 'SNOW' : 'CLASSIC') + ')';
+      buySnowBtn.disabled = false;
+      snowDesc.textContent = 'Owned! Tap to swap between classic and snow world.';
+    } else if(bestScore >= 1000){
+      buySnowBtn.textContent = 'BUY — ' + SNOW_WORLD_COST + ' 🪙';
+      buySnowBtn.disabled = coins < SNOW_WORLD_COST;
+      snowDesc.textContent = 'Unlocked! Buy the snow world for ' + SNOW_WORLD_COST + ' coins.';
+    } else {
+      buySnowBtn.textContent = 'LOCKED';
+      buySnowBtn.disabled = true;
+      snowDesc.textContent = 'Reach 1000 score in a single run to unlock this purchase.';
+    }
+  }
+
+  document.getElementById('buySpeed').addEventListener('click', ()=>{
+    if(speedLevel >= SPEED_COSTS.length) return;
+    const cost = SPEED_COSTS[speedLevel];
+    if(coins >= cost){
+      coins -= cost;
+      speedLevel++;
+      updateCoinDisplays();
+    }
+  });
+
+  document.getElementById('buySpike').addEventListener('click', ()=>{
+    if(hasSpikes) return;
+    if(coins >= SPIKE_COST){
+      coins -= SPIKE_COST;
+      hasSpikes = true;
+      updateCoinDisplays();
+    }
+  });
+
+  document.getElementById('buySnow').addEventListener('click', ()=>{
+    if(ownsSnowWorld){
+      currentWorld = currentWorld === 'classic' ? 'snow' : 'classic';
+      refreshShopButtons();
+      return;
+    }
+    if(bestScore < 1000) return;
+    if(coins >= SNOW_WORLD_COST){
+      coins -= SNOW_WORLD_COST;
+      ownsSnowWorld = true;
+      currentWorld = 'snow';
+      updateCoinDisplays();
+    }
+  });
+
+  function showOnly(id){
+    ['startScreen','overScreen','pauseOverlay','shopOverlay','codeOverlay','customizeOverlay'].forEach(s=>{
+      document.getElementById(s).classList.toggle('show', s===id);
+    });
+  }
+
+  document.getElementById('startBtn').addEventListener('click', ()=>{
+    resetGame();
+    running = true;
+    showOnly(null);
+    document.getElementById('startScreen').classList.remove('show');
+    document.getElementById('overScreen').classList.remove('show');
+  });
+
+  document.getElementById('retryBtn').addEventListener('click', ()=>{
+    resetGame();
+    running = true;
+    document.getElementById('overScreen').classList.remove('show');
+  });
+
+  document.getElementById('resumeBtn').addEventListener('click', togglePause);
+
+  document.getElementById('shopBtnStart').addEventListener('click', ()=>{
+    updateCoinDisplays();
+    showOnly('shopOverlay');
+  });
+  document.getElementById('shopBtnOver').addEventListener('click', ()=>{
+    updateCoinDisplays();
+    showOnly('shopOverlay');
+  });
+  document.getElementById('closeShopBtn').addEventListener('click', ()=>{
+    if(gameOver){
+      showOnly('overScreen');
+    } else if(running){
+      showOnly(null);
+    } else {
+      showOnly('startScreen');
+    }
+  });
+
+  // init
+  layout();
+  updateCoinDisplays();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
