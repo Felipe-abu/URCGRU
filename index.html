@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Random car game 2000 🚗💢</title>
+<title>URCGRU</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -243,8 +243,8 @@
 
     <!-- START -->
     <div id="startScreen" class="overlay show">
-      <h1 class="title">Ultimate random aah car game<br>2000</h1>
-      <p class="sub">3 lanes. cars everywhere. The game roasts you for no reason at all. - STILL ON ALPHA MAY HAVE BUGS</p>
+      <h1 class="title">Random car game that roasts you<br>2000</h1>
+      <p class="sub">3 lanes. cars everywhere. - STILL ON ALPHA MAY HAVE BUGS</p>
       <div class="keys">
         <span class="key">A / D = MOVE</span>
         <span class="key">P = PAUSE</span>
@@ -295,7 +295,7 @@
         </div>
         <div class="shopItem">
           <h3>❄️ SNOW WORLD</h3>
-          <p id="snowDesc">Reach 1000 score in a single run to unlock.</p>
+          <p id="snowDesc">Reach 1000 score in a single run to unlock the payment LOL</p>
           <button class="btn buy alt" id="buySnow">LOCKED</button>
         </div>
       </div>
@@ -351,11 +351,11 @@
   resize();
 
   // ---------- Persistent-ish state (in-memory only, resets on reload) ----------
-  let coins = 0;
+  let coins =0;
   let speedLevel = 0;       // 0..5
   let hasSpikes = false;
 
-  const SPEED_COSTS = [50, 80, 130, 180, 240];
+  const SPEED_COSTS = [45, 70, 110, 160, 220];
   const SPIKE_COST = 250;
 
   // ---------- Game state ----------
@@ -394,7 +394,23 @@
   let snowflakes = [];
 
   // customization
-  let playerCustom = { body:'#ffffff', stripe:'#ff0000', stripeOn:true };
+  let playerCustom = { body:'#ffffff', stripe:'#add8e6', stripeOn:true };
+
+  // Restore only the customization/code state when possible.
+  try{
+    const saved = JSON.parse(localStorage.getItem('randomCarGameState') || 'null');
+    if(saved){
+      if(saved.playerCustom) playerCustom = {
+        body: saved.playerCustom.body || '#ffffff',
+        stripe: saved.playerCustom.stripe || '#add8e6',
+        stripeOn: saved.playerCustom.stripeOn !== false
+      };
+      if(Array.isArray(saved.redeemedCodes)) redeemedCodes = new Set(saved.redeemedCodes);
+      gabrielActive = !!saved.gabrielActive;
+      christmasActive = !!saved.christmasActive;
+      upsideDownActive = !!saved.upsideDownActive;
+    }
+  }catch(_e){}
   const BODY_SWATCHES = ['#ff2e63','#08d9d6','#ffd23f','#5cff5c','#a855f7','#ff8a3d','#ffffff','#3a3a44'];
   const STRIPE_SWATCHES = ['#fff23f','#ffffff','#08d9d6','#ff2e63','#5cff5c','#000000','#ff0000'];
 
@@ -861,6 +877,37 @@
   }
 
   // ---------- UI wiring ----------
+  // Codes + customization are intentionally kept separate from the car/sprite
+  // definitions above. They only change player state and UI.
+  const CODE_REWARDS = {
+    'GABRIEL': () => { gabrielActive = true; },
+    'CHRISTMAS': () => { christmasActive = true; },
+    'UPSIDEDOWN': () => { upsideDownActive = true; stage.classList.add('upside-down'); }
+  };
+
+  function saveSpecialState(){
+    try{
+      localStorage.setItem('randomCarGameState', JSON.stringify({
+        playerCustom,
+        redeemedCodes: [...redeemedCodes],
+        gabrielActive,
+        christmasActive,
+        upsideDownActive
+      }));
+    }catch(_e){}
+  }
+
+  function openOverlay(id){
+    showOnly(id);
+    if(id === 'codeOverlay'){
+      const input = document.getElementById('codeInput');
+      input.value = '';
+      document.getElementById('codeMsg').textContent = '';
+      setTimeout(() => input.focus(), 0);
+    }
+    if(id === 'customizeOverlay') renderCustomization();
+  }
+
   function updateCoinDisplays(){
     document.getElementById('coinVal').textContent = coins;
     document.getElementById('coinValStart').textContent = coins ? (' ('+coins+')') : '';
@@ -982,8 +1029,129 @@
     }
   });
 
+  // ---------- Codes ----------
+  function redeemCode(){
+    const input = document.getElementById('codeInput');
+    const msg = document.getElementById('codeMsg');
+    const code = input.value.trim().toUpperCase();
+
+    if(!code){
+      msg.textContent = 'Type a code first duuh';
+      return;
+    }
+
+    if(redeemedCodes.has(code)){
+      msg.textContent = 'Already redeemed lol';
+      return;
+    }
+
+    const reward = CODE_REWARDS[code];
+    if(!reward){
+      msg.textContent = 'That code doesnt exists bruh';
+      return;
+    }
+
+    reward();
+    redeemedCodes.add(code);
+    saveSpecialState();
+    msg.textContent = 'CODE REDEEMED!';
+    showToast('CODE REDEEMED');
+
+    // Apply visual easter-egg state immediately.
+    if(upsideDownActive) stage.classList.add('upside-down');
+  }
+
+  document.getElementById('codeBtnStart').addEventListener('click', ()=>{
+    openOverlay('codeOverlay');
+  });
+
+  document.getElementById('submitCodeBtn').addEventListener('click', redeemCode);
+
+  document.getElementById('codeInput').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      redeemCode();
+    }
+  });
+
+  document.getElementById('closeCodeBtn').addEventListener('click', ()=>{
+    showOnly(running ? null : 'startScreen');
+  });
+
+  // ---------- Customization ----------
+  function makeSwatches(containerId, colors, selected, onPick){
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+
+    colors.forEach(color => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'swatch' + (color.toLowerCase() === selected.toLowerCase() ? ' picked' : '');
+      button.style.background = color;
+      button.setAttribute('aria-label', color);
+      button.title = color;
+
+      button.addEventListener('click', ()=>{
+        onPick(color);
+        saveSpecialState();
+        renderCustomization();
+      });
+
+      container.appendChild(button);
+    });
+  }
+
+  function renderCustomization(){
+    makeSwatches('bodySwatches', BODY_SWATCHES, playerCustom.body, (color)=>{
+      playerCustom.body = color;
+    });
+
+    makeSwatches('stripeSwatches', STRIPE_SWATCHES, playerCustom.stripe, (color)=>{
+      playerCustom.stripe = color;
+    });
+
+    const toggle = document.getElementById('toggleStripeBtn');
+    toggle.textContent = 'STRIPE: ' + (playerCustom.stripeOn ? 'ON' : 'OFF');
+
+    drawPreview();
+  }
+
+  function drawPreview(){
+    const preview = document.getElementById('previewCanvas');
+    const pctx = preview.getContext('2d');
+    pctx.imageSmoothingEnabled = false;
+    pctx.clearRect(0, 0, preview.width, preview.height);
+    pctx.fillStyle = '#111';
+    pctx.fillRect(0, 0, preview.width, preview.height);
+
+    drawCar(
+      preview.width / 2,
+      preview.height / 2,
+      58,
+      100,
+      0,
+      true,
+      pctx
+    );
+  }
+
+  document.getElementById('customizeBtnStart').addEventListener('click', ()=>{
+    openOverlay('customizeOverlay');
+  });
+
+  document.getElementById('toggleStripeBtn').addEventListener('click', ()=>{
+    playerCustom.stripeOn = !playerCustom.stripeOn;
+    saveSpecialState();
+    renderCustomization();
+  });
+
+  document.getElementById('closeCustomizeBtn').addEventListener('click', ()=>{
+    showOnly(running ? null : 'startScreen');
+  });
+
   // init
   layout();
+  if(upsideDownActive) stage.classList.add('upside-down');
   updateCoinDisplays();
   requestAnimationFrame(loop);
 })();
