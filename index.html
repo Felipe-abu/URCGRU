@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>URCGRU</title>
+<title>Ultimate Random Car Game that Roasts You 2000</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -243,7 +243,7 @@
 
     <!-- START -->
     <div id="startScreen" class="overlay show">
-      <h1 class="title">Random car game that roasts you<br>2000</h1>
+      <h1 class="title">ULTIMATE RANDOM CAR GAME THAT ROASTS YOU<br>2000</h1>
       <p class="sub">3 lanes. cars everywhere. - STILL ON ALPHA MAY HAVE BUGS</p>
       <div class="keys">
         <span class="key">A / D = MOVE</span>
@@ -592,7 +592,7 @@
     "....BBBDBBB...."
   ];
 
-  const HAT_GRID = [".RRR.","RRRRR","WWWWW"];
+  const HAT_GRID = ["WW","WW",".RRR.","RRRRR","WWWWW"];
   const HAT_PALETTE = { R:'#d61f34', W:'#fff' };
 
   function getPlayerPalette(){
@@ -842,9 +842,9 @@
       if(spikesActive){
         spikeTag.textContent = '💥 ' + Math.ceil(spikesTimeLeft/1000) + 's';
       } else if(spikesCooldownLeft > 0){
-        spikeTag.textContent = '🔺 cd ' + Math.ceil(spikesCooldownLeft/1000) + 's';
+        spikeTag.textContent = '🔺 cooldown ' + Math.ceil(spikesCooldownLeft/1000) + 's';
       } else {
-        spikeTag.textContent = '🔺 ready';
+        spikeTag.textContent = '🔺 ready to use';
       }
     } else {
       spikeTag.textContent = '';
@@ -943,7 +943,7 @@
     if(ownsSnowWorld){
       buySnowBtn.textContent = 'SWITCH WORLD (' + (currentWorld === 'snow' ? 'SNOW' : 'CLASSIC') + ')';
       buySnowBtn.disabled = false;
-      snowDesc.textContent = 'Owned! Tap to swap between classic and snow world.';
+      snowDesc.textContent = 'Owned! Tap to swap between classic and snow world heh';
     } else if(bestScore >= 1000){
       buySnowBtn.textContent = 'BUY — ' + SNOW_WORLD_COST + ' 🪙';
       buySnowBtn.disabled = coins < SNOW_WORLD_COST;
